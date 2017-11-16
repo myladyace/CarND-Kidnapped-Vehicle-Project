@@ -10,7 +10,6 @@
 #include <iostream>
 #include <numeric>
 #include <math.h>
-#include <float.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -20,16 +19,18 @@
 
 using namespace std;
 
+default_random_engine gen;
+
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
     // TODO: Set the number of particles. Initialize all particles to first position (based on estimates of
     //   x, y, theta and their uncertainties from GPS) and all weights to 1.
     // Add random Gaussian noise to each particle.
     // NOTE: Consult particle_filter.h for more information about this method (and others in this file).
-  int num_particles = 200;
-  default_random_engine gen(time(0));
+  num_particles = 200;
+
   normal_distribution<double> dist_x(x, std[0]);
-    normal_distribution<double> dist_y(y, std[1]);
-    normal_distribution<double> dist_theta(theta, std[2]);
+  normal_distribution<double> dist_y(y, std[1]);
+  normal_distribution<double> dist_theta(theta, std[2]);
 
   for (int i=0; i<num_particles; i++){
     Particle temp;
@@ -48,10 +49,9 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
     // NOTE: When adding noise you may find std::normal_distribution and std::default_random_engine useful.
     //  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
     //  http://www.cplusplus.com/reference/random/default_random_engine/
-  default_random_engine gen(time(0));
   normal_distribution<double> dist_x(0, std_pos[0]);
-    normal_distribution<double> dist_y(0, std_pos[1]);
-    normal_distribution<double> dist_theta(0, std_pos[2]);
+  normal_distribution<double> dist_y(0, std_pos[1]);
+  normal_distribution<double> dist_theta(0, std_pos[2]);
 
   for (int i=0; i<num_particles; i++){
     double current_x, current_y, current_theta;
@@ -65,8 +65,8 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
       update_y = current_y + velocity/yaw_rate*(cos(current_theta) - cos(current_theta+yaw_rate*delta_t)) + dist_y(gen);
     }
     else{
-      update_x = current_x + velocity*cos(current_theta) + dist_x(gen);
-      update_y = current_y + velocity*sin(current_theta) + dist_y(gen);
+      update_x = current_x + velocity*cos(current_theta)*delta_t  + dist_x(gen);
+      update_y = current_y + velocity*sin(current_theta)*delta_t  + dist_y(gen);
     }
     update_theta = current_theta + yaw_rate*delta_t + dist_theta(gen);
 
@@ -83,7 +83,7 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
     //   implement this method and use it as a helper during the updateWeights phase.
   // Predicted are landmarkObs in map and observations are those of cars
   for(int i=0; i<observations.size(); i++){
-    double temp = DBL_MAX;
+    double temp = numeric_limits<double>::max();
     int association_id;
     for(int j=0; j<predicted.size(); j++){
       double distance_ = dist(observations[i].x, observations[i].y, predicted[j].x, predicted[j].y);
@@ -179,6 +179,7 @@ void ParticleFilter::resample() {
     //   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
   std::vector<Particle> new_particles;
 
+  weights.clear();
   // Get weights
   for(int i=0; i< num_particles; i++){
     weights.push_back(particles[i].weight);
@@ -186,9 +187,6 @@ void ParticleFilter::resample() {
 
   // Get max weight
   double max_weight = *max_element(weights.begin(), weights.end());
-
-  // random engine
-  default_random_engine gen(time(0));
 
   // Start index
   discrete_distribution<int> dist_index(0, num_particles-1);
@@ -201,7 +199,7 @@ void ParticleFilter::resample() {
 
   for (int i=0; i<num_particles; i++){
     beta += dist_step(gen) * 2.0;
-    while(beta>weights[i]){
+    while(beta>weights[index]){
       beta -= weights[index];
       index = (index+1) % num_particles;
     }
